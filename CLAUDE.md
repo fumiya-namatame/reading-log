@@ -8,13 +8,13 @@
 
 ## 構成
 
-| ディレクトリ | 内容                         | 詳細ルール           |
-| ------------ | ---------------------------- | -------------------- |
-| `frontend/`  | Vue 3 + TypeScript + Vite    | `frontend/CLAUDE.md` |
-| `backend/`   | Java + Spring Boot（未作成） | 作成時に追加する     |
+| ディレクトリ | 内容                      | 詳細ルール           |
+| ------------ | ------------------------- | -------------------- |
+| `frontend/`  | Vue 3 + TypeScript + Vite | `frontend/CLAUDE.md` |
+| `backend/`   | Java 25 + Spring Boot 4   | `backend/CLAUDE.md`  |
 
 - 各ディレクトリの技術スタック・コマンド・コーディング規約は、それぞれの CLAUDE.md に書く
-- npm などのコマンドは、それぞれのディレクトリで実行する
+- npm や mvnw などのコマンドは、それぞれのディレクトリで実行する
 
 ## Claude との役割分担
 
