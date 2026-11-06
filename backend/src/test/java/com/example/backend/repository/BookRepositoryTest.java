@@ -1,9 +1,11 @@
 package com.example.backend.repository;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,5 +39,24 @@ class BookRepositoryTest {
 
         assertThat(saved.getId()).isNotNull();
         assertThat(bookRepository.findById(saved.getId())).isPresent();
+    }
+
+    @Test
+    void deleteByIdで指定した本だけが削除される() {
+        UUID id = UUID.fromString("11111111-1111-1111-1111-111111111111"); // data.sql の「吾輩は猫である」
+
+        bookRepository.deleteById(id);
+
+        assertThat(bookRepository.findById(id)).isEmpty();
+        assertThat(bookRepository.findAll()).hasSize(2);
+    }
+
+    @Test
+    void 存在しないIDをdeleteByIdしても例外にならず何も消えない() {
+        // BookService.delete() の「存在しない ID ならエラーにせず何もしない」仕様は、この動きを前提にしている
+        UUID notExist = UUID.fromString("99999999-9999-9999-9999-999999999999");
+
+        assertThatCode(() -> bookRepository.deleteById(notExist)).doesNotThrowAnyException();
+        assertThat(bookRepository.findAll()).hasSize(3);
     }
 }
