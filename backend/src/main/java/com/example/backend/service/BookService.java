@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.springframework.stereotype.Service;
 
+import com.example.backend.dto.BookRequest;
 import com.example.backend.entity.Book;
 import com.example.backend.repository.BookRepository;
 
@@ -29,5 +30,16 @@ public class BookService {
      */
     public List<Book> findAll() {
         return bookRepository.findAll();
+    }
+
+    /**
+     * 本を新しく登録する。
+     *
+     * @param request 登録する本の内容（ID は含まない）
+     * @return 登録された本（ID が採番された状態）
+     */
+    public Book create(BookRequest request) {
+        Book book = new Book(request.title(), request.author(), request.finishedDate(), request.review());
+        return bookRepository.save(book);
     }
 }
