@@ -5,13 +5,16 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -130,6 +133,30 @@ class BookControllerTest {
                     .andExpect(status().isBadRequest());
 
             verify(bookService, never()).create(any());
+        }
+    }
+
+    @Nested
+    class DELETE_削除 {
+
+        @Test
+        void 削除に成功すると204が返り本文は空() throws Exception {
+            UUID id = UUID.fromString("11111111-1111-1111-1111-111111111111");
+
+            mockMvc.perform(delete("/api/books/{id}", id))
+                    .andExpect(status().isNoContent())
+                    .andExpect(content().string(""));
+
+            // URL の ID が UUID に変換されて Service に渡っている
+            verify(bookService).delete(id);
+        }
+
+        @Test
+        void IDがUUIDの形式でないと400になりServiceは呼ばれない() throws Exception {
+            mockMvc.perform(delete("/api/books/{id}", "not-a-uuid"))
+                    .andExpect(status().isBadRequest());
+
+            verify(bookService, never()).delete(any());
         }
     }
 }
