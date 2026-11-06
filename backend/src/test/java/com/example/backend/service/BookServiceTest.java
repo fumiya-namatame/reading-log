@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -94,5 +95,14 @@ class BookServiceTest {
         verify(bookRepository).save(captor.capture());
         assertThat(captor.getValue().getTitle()).isEqualTo("こころ");
         assertThat(captor.getValue().getFinishedDate()).isNull();
+    }
+
+    @Test
+    void deleteは指定したIDでRepositoryの削除を呼ぶ() {
+        UUID id = UUID.fromString("11111111-1111-1111-1111-111111111111");
+
+        bookService.delete(id);
+
+        verify(bookRepository).deleteById(id);
     }
 }
