@@ -21,6 +21,17 @@
 ## コーディング規約
 
 - パッケージは `com.example.backend` 配下に置く
+- パッケージは機能ごとではなく層ごとに分ける
+
+  | パッケージ   | 置くもの                                          | 例                    |
+  | ------------ | ------------------------------------------------- | --------------------- |
+  | `controller` | HTTP リクエストを受ける `@RestController`         | `BookController`      |
+  | `service`    | ビジネスロジックをまとめる `@Service`             | `BookService`         |
+  | `repository` | DB を操作する `JpaRepository` の継承インターフェース | `BookRepository`      |
+  | `entity`     | DB のテーブルに対応する `@Entity`                 | `Book`                |
+  | `dto`        | API で受け渡しするリクエスト・レスポンスの型      | `BookRequest` など    |
+
+- テストクラスは、テスト対象と同じパッケージに置く（例: `src/test/java/com/example/backend/repository/BookRepositoryTest.java`）
 
 ## 変更後の確認
 
