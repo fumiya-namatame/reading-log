@@ -1,12 +1,16 @@
 package com.example.backend.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.NoSuchElementException;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
@@ -95,6 +99,51 @@ class BookServiceTest {
         verify(bookRepository).save(captor.capture());
         assertThat(captor.getValue().getTitle()).isEqualTo("こころ");
         assertThat(captor.getValue().getFinishedDate()).isNull();
+    }
+
+    @Test
+    void updateは既存の本をリクエストの内容で書き換えて保存する() {
+        UUID id = UUID.fromString("11111111-1111-1111-1111-111111111111");
+        Book existing = new Book("こころ", "夏目漱石", LocalDate.of(2026, 10, 1), "面白かった");
+        when(bookRepository.findById(id)).thenReturn(Optional.of(existing));
+        BookRequest request = new BookRequest("こころ（改版）", "夏目 漱石", LocalDate.of(2026, 11, 3), "二回目も面白かった");
+
+        bookService.update(id, request);
+
+        // 新しい Book を作るのではなく、取得した既存の Book を書き換えて保存していることを確認する
+        ArgumentCaptor<Book> captor = ArgumentCaptor.forClass(Book.class);
+        verify(bookRepository).save(captor.capture());
+        Book passed = captor.getValue();
+        assertThat(passed).isSameAs(existing);
+        assertThat(passed.getTitle()).isEqualTo("こころ（改版）");
+        assertThat(passed.getAuthor()).isEqualTo("夏目 漱石");
+        assertThat(passed.getFinishedDate()).isEqualTo(LocalDate.of(2026, 11, 3));
+        assertThat(passed.getReview()).isEqualTo("二回目も面白かった");
+    }
+
+    @Test
+    void updateはRepositoryが保存した結果を返す() {
+        UUID id = UUID.fromString("11111111-1111-1111-1111-111111111111");
+        Book existing = new Book("こころ", "夏目漱石", LocalDate.of(2026, 10, 1), "面白かった");
+        when(bookRepository.findById(id)).thenReturn(Optional.of(existing));
+        Book saved = new Book("こころ（改版）", "夏目漱石", LocalDate.of(2026, 10, 1), "面白かった");
+        when(bookRepository.save(any(Book.class))).thenReturn(saved);
+        BookRequest request = new BookRequest("こころ（改版）", "夏目漱石", LocalDate.of(2026, 10, 1), "面白かった");
+
+        Book result = bookService.update(id, request);
+
+        assertThat(result).isSameAs(saved);
+    }
+
+    @Test
+    void updateは存在しないIDのとき例外を投げて保存しない() {
+        UUID id = UUID.fromString("99999999-9999-9999-9999-999999999999");
+        when(bookRepository.findById(id)).thenReturn(Optional.empty());
+        BookRequest request = new BookRequest("こころ", "夏目漱石", LocalDate.of(2026, 10, 1), "面白かった");
+
+        assertThatThrownBy(() -> bookService.update(id, request))
+                .isInstanceOf(NoSuchElementException.class);
+        verify(bookRepository, never()).save(any(Book.class));
     }
 
     @Test

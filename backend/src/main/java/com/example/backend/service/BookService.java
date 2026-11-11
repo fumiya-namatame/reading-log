@@ -45,6 +45,21 @@ public class BookService {
     }
 
     /**
+     * 指定した ID の本の内容を更新する。
+     * @param id 更新する本の ID
+     * @param request 更新後の本の内容（ID は含まない）
+     * @return 更新された本（ID は変わらない）
+     */
+    public Book update(UUID id, BookRequest request) {
+        Book book = bookRepository.findById(id).orElseThrow();
+        book.setTitle(request.title());
+        book.setAuthor(request.author());
+        book.setFinishedDate(request.finishedDate());
+        book.setReview(request.review());
+        return bookRepository.save(book);
+    }
+
+    /**
      * 指定した ID の本を削除する。
      * 存在しない ID が指定されたときは、エラーにせず何もしない。
      *
