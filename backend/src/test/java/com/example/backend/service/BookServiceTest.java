@@ -142,7 +142,8 @@ class BookServiceTest {
         BookRequest request = new BookRequest("こころ", "夏目漱石", LocalDate.of(2026, 10, 1), "面白かった");
 
         assertThatThrownBy(() -> bookService.update(id, request))
-                .isInstanceOf(NoSuchElementException.class);
+                .isInstanceOf(NoSuchElementException.class)
+                .hasMessage("本が見つかりません");
         verify(bookRepository, never()).save(any(Book.class));
     }
 
