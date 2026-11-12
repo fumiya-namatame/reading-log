@@ -1,13 +1,16 @@
 package com.example.backend.controller;
 
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -53,6 +56,29 @@ public class BookController {
     @ResponseStatus(HttpStatus.CREATED)
     public Book create(@Valid @RequestBody BookRequest request) {
         return bookService.create(request);
+    }
+
+    /**
+     * 指定した ID の本の内容を更新し、更新された本を返す。
+     * PUT /api/books/{id}
+     *
+     * 存在しない ID のときは 404 Not Found を返す（下の handleNotFound() で変換する）。
+     * 入力チェックに引っかかったときや、ID が UUID の形式でないときは、
+     * このメソッドは呼ばれずに 400 Bad Request が返る。
+     */
+    @PutMapping("/{id}")
+    @ResponseStatus(HttpStatus.OK)
+    public Book update(@PathVariable UUID id, @Valid @RequestBody BookRequest request) {
+        return bookService.update(id, request);
+    }
+
+    /**
+     * このコントローラーの中で NoSuchElementException（本が見つからない）が起きたら、
+     * 404 Not Found を返す。本文は空にする。
+     */
+    @ExceptionHandler(NoSuchElementException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public void handleNotFound() {
     }
 
     /**

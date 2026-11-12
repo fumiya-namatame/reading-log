@@ -1,6 +1,7 @@
 package com.example.backend.service;
 
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -41,6 +42,25 @@ public class BookService {
      */
     public Book create(BookRequest request) {
         Book book = new Book(request.title(), request.author(), request.finishedDate(), request.review());
+        return bookRepository.save(book);
+    }
+
+    /**
+     * 指定した ID の本の内容を更新する。
+     *
+     * @param id      更新する本の ID
+     * @param request 更新後の本の内容（ID は含まない）
+     * @return 更新された本（ID は変わらない）
+     * @throws NoSuchElementException 指定した ID の本が存在しないとき
+     */
+    public Book update(UUID id, BookRequest request) {
+        // HTTP のステータスは Controller 側で決めるので、ここでは「見つからない」ことだけを伝える
+        Book book = bookRepository.findById(id)
+                .orElseThrow(() -> new NoSuchElementException("本が見つかりません"));
+        book.setTitle(request.title());
+        book.setAuthor(request.author());
+        book.setFinishedDate(request.finishedDate());
+        book.setReview(request.review());
         return bookRepository.save(book);
     }
 

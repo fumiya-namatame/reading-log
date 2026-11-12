@@ -8,12 +8,14 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Nested;
@@ -133,6 +135,69 @@ class BookControllerTest {
                     .andExpect(status().isBadRequest());
 
             verify(bookService, never()).create(any());
+        }
+    }
+
+    @Nested
+    class PUT_更新 {
+
+        private final UUID id = UUID.fromString("11111111-1111-1111-1111-111111111111");
+
+        /** PUT /api/books/{id} に JSON を送る */
+        private ResultActions putBook(Object pathId, String json) throws Exception {
+            return mockMvc.perform(put("/api/books/{id}", pathId)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(json));
+        }
+
+        @Test
+        void 更新に成功すると200と更新された本が返る() throws Exception {
+            when(bookService.update(any(UUID.class), any(BookRequest.class))).thenReturn(
+                    new Book("こころ（改版）", "夏目漱石", LocalDate.of(2026, 11, 3), "二回目も面白かった"));
+
+            putBook(id, """
+                    {"title": "こころ（改版）", "author": "夏目漱石", "finishedDate": "2026-11-03", "review": "二回目も面白かった"}
+                    """)
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.title").value("こころ（改版）"))
+                    .andExpect(jsonPath("$.finishedDate").value("2026-11-03"));
+
+            // URL の ID と JSON の中身が、それぞれ正しく変換されて Service に渡っている
+            verify(bookService).update(id,
+                    new BookRequest("こころ（改版）", "夏目漱石", LocalDate.of(2026, 11, 3), "二回目も面白かった"));
+        }
+
+        @Test
+        void 存在しないIDだと404になり本文は空() throws Exception {
+            // Service が「見つからない」例外を投げたときに、Controller の handleNotFound() で 404 に変換される
+            when(bookService.update(any(UUID.class), any(BookRequest.class)))
+                    .thenThrow(new NoSuchElementException("本が見つかりません"));
+
+            putBook(id, """
+                    {"title": "こころ", "author": "", "finishedDate": "", "review": ""}
+                    """)
+                    .andExpect(status().isNotFound())
+                    .andExpect(content().string(""));
+        }
+
+        @Test
+        void タイトルが空だと400になりServiceは呼ばれない() throws Exception {
+            putBook(id, """
+                    {"title": "", "author": "夏目漱石", "finishedDate": "2026-10-01", "review": ""}
+                    """)
+                    .andExpect(status().isBadRequest());
+
+            verify(bookService, never()).update(any(), any());
+        }
+
+        @Test
+        void IDがUUIDの形式でないと400になりServiceは呼ばれない() throws Exception {
+            putBook("not-a-uuid", """
+                    {"title": "こころ", "author": "", "finishedDate": "", "review": ""}
+                    """)
+                    .andExpect(status().isBadRequest());
+
+            verify(bookService, never()).update(any(), any());
         }
     }
 
