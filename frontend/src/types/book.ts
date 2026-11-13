@@ -14,3 +14,20 @@ export interface Book {
 
 /** フォームの入力値（ID は追加時に採番するので含まない） */
 export type BookInput = Omit<Book, 'id'>
+
+/**
+ * バックエンド API（GET /api/books など）が返す本の JSON。
+ * 画面では Book に変換してから使う（null は '' にそろえる）。
+ */
+export interface BookResponse {
+  /** 一意な ID（バックエンドが採番した UUID） */
+  id: string
+  /** タイトル（バックエンドの入力チェックで必須） */
+  title: string
+  /** 著者（登録時に省略されると null） */
+  author: string | null
+  /** 読了日（'YYYY-MM-DD' 形式。未入力なら null） */
+  finishedDate: string | null
+  /** 感想（登録時に省略されると null） */
+  review: string | null
+}
