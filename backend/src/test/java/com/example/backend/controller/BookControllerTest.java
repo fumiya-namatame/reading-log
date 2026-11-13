@@ -52,7 +52,8 @@ class BookControllerTest {
 
         @Test
         void 本の一覧がJSONで返る() throws Exception {
-            when(bookService.findAll()).thenReturn(List.of(
+            // keyword を付けないと Service には null が渡り、search() が全件を返す
+            when(bookService.search(null)).thenReturn(List.of(
                     new Book("吾輩は猫である", "夏目漱石", LocalDate.of(2026, 9, 10), "面白かった"),
                     new Book("羅生門", "芥川龍之介", LocalDate.of(2026, 10, 2), "重い")));
 
@@ -68,11 +69,49 @@ class BookControllerTest {
 
         @Test
         void 本が1冊もないときは空の配列が返る() throws Exception {
-            when(bookService.findAll()).thenReturn(List.of());
+            when(bookService.search(null)).thenReturn(List.of());
 
             mockMvc.perform(get("/api/books"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$", hasSize(0)));
+        }
+    }
+
+    @Nested
+    class GET_検索 {
+
+        @Test
+        void keywordを付けるとServiceのsearchにそのまま渡され結果がJSONで返る() throws Exception {
+            when(bookService.search("猫")).thenReturn(List.of(
+                    new Book("吾輩は猫である", "夏目漱石", LocalDate.of(2026, 9, 10), "面白かった")));
+
+            mockMvc.perform(get("/api/books").param("keyword", "猫"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$", hasSize(1)))
+                    .andExpect(jsonPath("$[0].title").value("吾輩は猫である"));
+            verify(bookService).search("猫");
+        }
+
+        @Test
+        void 一致する本がないときは空の配列が返る() throws Exception {
+            when(bookService.search("坊っちゃん")).thenReturn(List.of());
+
+            mockMvc.perform(get("/api/books").param("keyword", "坊っちゃん"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$", hasSize(0)));
+        }
+
+        @Test
+        void keywordが空文字のときは空文字のままServiceに渡される() throws Exception {
+            // GET /api/books?keyword= のとき、Controller は null に変換せず "" を渡す。
+            // 空文字を全件扱いにするのは Service の search() の役目
+            when(bookService.search("")).thenReturn(List.of(
+                    new Book("羅生門", "芥川龍之介", LocalDate.of(2026, 10, 2), "重い")));
+
+            mockMvc.perform(get("/api/books").param("keyword", ""))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$", hasSize(1)));
+            verify(bookService).search("");
         }
     }
 

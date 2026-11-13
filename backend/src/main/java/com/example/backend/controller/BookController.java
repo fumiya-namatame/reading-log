@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -38,12 +39,15 @@ public class BookController {
     }
 
     /**
-     * 本の一覧を返す。
+     * 本の一覧を返す。keyword を指定すると、タイトルか著者にその文字列を含む本だけを返す。
      * GET /api/books
+     * GET /api/books?keyword=検索文字列
+     *
+     * keyword がないとき・空のとき・空白だけのときは全件を返す（BookService.search() の仕様）。
      */
     @GetMapping
-    public List<Book> findAll() {
-        return bookService.findAll();
+    public List<Book> list(@RequestParam(required = false) String keyword) {
+        return bookService.search(keyword);
     }
 
     /**
