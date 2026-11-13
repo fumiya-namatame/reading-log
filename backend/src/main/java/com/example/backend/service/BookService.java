@@ -73,4 +73,18 @@ public class BookService {
     public void delete(UUID id) {
         bookRepository.deleteById(id);
     }
+
+    /**
+     * タイトルまたは著者に指定した文字列が含まれる本をすべて返す。
+     *
+     * @param keyword タイトルまたは著者に含まれる文字列
+     * @return 条件に合う本のリスト（0 件の可能性もある）
+     */
+    public List<Book> search(String keyword) {
+        if (keyword == null || keyword.isBlank()) {
+            return bookRepository.findAll();
+        }
+        String trimmed = keyword.strip();
+        return bookRepository.findByTitleContainingOrAuthorContaining(trimmed, trimmed);
+    }
 }

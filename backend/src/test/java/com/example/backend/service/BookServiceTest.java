@@ -155,4 +155,66 @@ class BookServiceTest {
 
         verify(bookRepository).deleteById(id);
     }
+
+    @Test
+    void searchはキーワードをタイトルと著者の両方の条件に渡して検索結果を返す() {
+        List<Book> found = List.of(new Book("吾輩は猫である", "夏目漱石", LocalDate.of(2026, 9, 10), "面白かった"));
+        when(bookRepository.findByTitleContainingOrAuthorContaining("猫", "猫")).thenReturn(found);
+
+        List<Book> result = bookService.search("猫");
+
+        assertThat(result).isEqualTo(found);
+    }
+
+    @Test
+    void searchはキーワードの前後の空白を取り除いてから検索する() {
+        when(bookRepository.findByTitleContainingOrAuthorContaining("猫", "猫")).thenReturn(List.of());
+
+        bookService.search("  猫　");
+
+        // strip() は全角スペースも取り除く
+        verify(bookRepository).findByTitleContainingOrAuthorContaining("猫", "猫");
+    }
+
+    @Test
+    void searchは一致する本がないとき空のリストを返す() {
+        when(bookRepository.findByTitleContainingOrAuthorContaining("坊っちゃん", "坊っちゃん")).thenReturn(List.of());
+
+        List<Book> result = bookService.search("坊っちゃん");
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void searchはキーワードがnullのとき全件を返す() {
+        List<Book> all = List.of(new Book("羅生門", "芥川龍之介", LocalDate.of(2026, 10, 2), "重い"));
+        when(bookRepository.findAll()).thenReturn(all);
+
+        List<Book> result = bookService.search(null);
+
+        assertThat(result).isEqualTo(all);
+        verify(bookRepository, never()).findByTitleContainingOrAuthorContaining(any(), any());
+    }
+
+    @Test
+    void searchはキーワードが空文字のとき全件を返す() {
+        List<Book> all = List.of(new Book("羅生門", "芥川龍之介", LocalDate.of(2026, 10, 2), "重い"));
+        when(bookRepository.findAll()).thenReturn(all);
+
+        List<Book> result = bookService.search("");
+
+        assertThat(result).isEqualTo(all);
+        verify(bookRepository, never()).findByTitleContainingOrAuthorContaining(any(), any());
+    }
+
+    @Test
+    void searchはキーワードが空白だけのとき全件を返す() {
+        List<Book> all = List.of(new Book("羅生門", "芥川龍之介", LocalDate.of(2026, 10, 2), "重い"));
+        when(bookRepository.findAll()).thenReturn(all);
+
+        List<Book> result = bookService.search("   ");
+
+        assertThat(result).isEqualTo(all);
+        verify(bookRepository, never()).findByTitleContainingOrAuthorContaining(any(), any());
+    }
 }
