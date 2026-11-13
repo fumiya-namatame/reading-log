@@ -41,27 +41,6 @@ class BookServiceTest {
     private BookService bookService;
 
     @Test
-    void findAllはRepositoryから取得した本をそのまま返す() {
-        List<Book> books = List.of(
-                new Book("吾輩は猫である", "夏目漱石", LocalDate.of(2026, 9, 10), "面白かった"),
-                new Book("羅生門", "芥川龍之介", LocalDate.of(2026, 10, 2), "重い"));
-        when(bookRepository.findAll()).thenReturn(books);
-
-        List<Book> result = bookService.findAll();
-
-        assertThat(result).isEqualTo(books);
-    }
-
-    @Test
-    void 本が1冊もないときは空のリストを返す() {
-        when(bookRepository.findAll()).thenReturn(List.of());
-
-        List<Book> result = bookService.findAll();
-
-        assertThat(result).isEmpty();
-    }
-
-    @Test
     void createはリクエストの内容でBookを作ってRepositoryに保存する() {
         BookRequest request = new BookRequest("こころ", "夏目漱石", LocalDate.of(2026, 10, 1), "面白かった");
 

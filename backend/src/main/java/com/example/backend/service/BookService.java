@@ -28,13 +28,6 @@ public class BookService {
     }
 
     /**
-     * 登録されている本をすべて返す。
-     */
-    public List<Book> findAll() {
-        return bookRepository.findAll();
-    }
-
-    /**
      * 本を新しく登録する。
      *
      * @param request 登録する本の内容（ID は含まない）
