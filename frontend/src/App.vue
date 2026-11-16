@@ -1,12 +1,17 @@
 <script setup lang="ts">
-import { useTemplateRef } from 'vue'
+import { onMounted, useTemplateRef } from 'vue'
 import BookForm from './components/BookForm.vue'
 import BookList from './components/BookList.vue'
 import { useBooks } from './composables/useBooks'
 import type { BookInput } from './types/book'
 
-const { books, addBook, removeBook, errorMessage } = useBooks()
+const { books, addBook, removeBook, errorMessage, isLoading, loadBookList } = useBooks()
 const bookForm = useTemplateRef('bookForm')
+
+// 画面を表示したら、本の一覧をバックエンドから取得する
+onMounted(() => {
+  loadBookList()
+})
 
 /** 保存に成功したときだけフォームを空にする（失敗時は入力を残して再送信できるようにする） */
 function handleSubmit(input: BookInput): void {
@@ -23,8 +28,11 @@ function handleSubmit(input: BookInput): void {
 
   <main class="main">
     <p v-if="errorMessage" class="error" role="alert">{{ errorMessage }}</p>
-    <BookForm ref="bookForm" @submit="handleSubmit" />
-    <BookList :books="books" @delete="removeBook" />
+    <!-- 取得中に追加すると、あとから届いた取得結果で上書きされて消えてしまうので、送信を止める -->
+    <BookForm ref="bookForm" :disabled="isLoading" @submit="handleSubmit" />
+    <!-- 取得中に BookList を出すと「まだ本が登録されていません」と表示されてしまうので、代わりに読み込み中を出す -->
+    <p v-if="isLoading" class="loading" role="status">読み込み中…</p>
+    <BookList v-else :books="books" @delete="removeBook" />
   </main>
 </template>
 
@@ -41,5 +49,9 @@ function handleSubmit(input: BookInput): void {
   border-radius: 4px;
   color: #b00;
   background: #fff0f0;
+}
+
+.loading {
+  color: #666;
 }
 </style>
