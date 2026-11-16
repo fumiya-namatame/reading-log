@@ -2,6 +2,11 @@
 import { computed, reactive } from 'vue'
 import type { BookInput } from '@/types/book'
 
+const props = defineProps<{
+  /** true のあいだは送信できない（一覧の取得中など、親の都合で送信を止めたいときに使う） */
+  disabled?: boolean
+}>()
+
 const emit = defineEmits<{
   submit: [input: BookInput]
 }>()
@@ -13,8 +18,8 @@ function createEmptyInput(): BookInput {
 
 const form = reactive<BookInput>(createEmptyInput())
 
-/** タイトルが入力されていれば送信できる */
-const canSubmit = computed(() => form.title.trim() !== '')
+/** 無効にされておらず、タイトルが入力されていれば送信できる */
+const canSubmit = computed(() => !props.disabled && form.title.trim() !== '')
 
 function handleSubmit(): void {
   if (!canSubmit.value) return

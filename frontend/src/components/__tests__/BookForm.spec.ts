@@ -48,4 +48,37 @@ describe('BookForm', () => {
     expect(wrapper.emitted('submit')).toBeUndefined()
     expect(wrapper.find('button[type="submit"]').attributes('disabled')).toBeDefined()
   })
+
+  describe('disabled', () => {
+    it('disabled が true のときは、タイトルが入力されていても emit せず、送信ボタンも無効', async () => {
+      const wrapper = mount(BookForm, { props: { disabled: true } })
+
+      await wrapper.find('input[name="title"]').setValue('こころ')
+      await wrapper.find('form').trigger('submit')
+
+      expect(wrapper.emitted('submit')).toBeUndefined()
+      expect(wrapper.find('button[type="submit"]').attributes('disabled')).toBeDefined()
+    })
+
+    it('disabled が true でも入力はできる', async () => {
+      const wrapper = mount(BookForm, { props: { disabled: true } })
+
+      await wrapper.find('input[name="title"]').setValue('こころ')
+
+      expect((wrapper.find('input[name="title"]').element as HTMLInputElement).value).toBe(
+        'こころ',
+      )
+    })
+
+    it('disabled が false に戻ると送信できる', async () => {
+      const wrapper = mount(BookForm, { props: { disabled: true } })
+      await wrapper.find('input[name="title"]').setValue('こころ')
+
+      await wrapper.setProps({ disabled: false })
+      await wrapper.find('form').trigger('submit')
+
+      expect(wrapper.find('button[type="submit"]').attributes('disabled')).toBeUndefined()
+      expect(wrapper.emitted('submit')).toHaveLength(1)
+    })
+  })
 })

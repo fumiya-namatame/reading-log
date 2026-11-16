@@ -15,4 +15,11 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
+  server: {
+    // 開発時は /api へのリクエストをバックエンド（Spring Boot）へ転送する。
+    // ブラウザからは同じオリジン（localhost:5173）への通信に見えるので、CORS の設定が要らない
+    proxy: {
+      '/api': 'http://localhost:8080',
+    },
+  },
 })
