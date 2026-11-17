@@ -5,7 +5,7 @@ import BookList from './components/BookList.vue'
 import { useBooks } from './composables/useBooks'
 import type { BookInput } from './types/book'
 
-const { books, addBook, removeBook, errorMessage, isLoading, loadBookList } = useBooks()
+const { books, addBook, removeBook, errorMessage, isLoading, isSaving, loadBookList } = useBooks()
 const bookForm = useTemplateRef('bookForm')
 
 // 画面を表示したら、本の一覧をバックエンドから取得する
@@ -14,8 +14,9 @@ onMounted(() => {
 })
 
 /** 保存に成功したときだけフォームを空にする（失敗時は入力を残して再送信できるようにする） */
-function handleSubmit(input: BookInput): void {
-  if (addBook(input)) {
+async function handleSubmit(input: BookInput): Promise<void> {
+  // addBook は Promise を返すので、await しないと常に「成功」扱いになってしまう
+  if (await addBook(input)) {
     bookForm.value?.reset()
   }
 }
@@ -28,8 +29,11 @@ function handleSubmit(input: BookInput): void {
 
   <main class="main">
     <p v-if="errorMessage" class="error" role="alert">{{ errorMessage }}</p>
-    <!-- 取得中に追加すると、あとから届いた取得結果で上書きされて消えてしまうので、送信を止める -->
-    <BookForm ref="bookForm" :disabled="isLoading" @submit="handleSubmit" />
+    <!--
+      取得中：追加すると、あとから届いた取得結果で上書きされて消えてしまうので、送信を止める
+      保存中：二度押しで同じ本が 2 冊登録されないように、送信を止める
+    -->
+    <BookForm ref="bookForm" :disabled="isLoading || isSaving" @submit="handleSubmit" />
     <!-- 取得中に BookList を出すと「まだ本が登録されていません」と表示されてしまうので、代わりに読み込み中を出す -->
     <p v-if="isLoading" class="loading" role="status">読み込み中…</p>
     <BookList v-else :books="books" @delete="removeBook" />
