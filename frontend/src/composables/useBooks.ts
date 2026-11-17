@@ -1,7 +1,6 @@
 import { ref } from 'vue'
 import type { Book, BookInput } from '@/types/book'
-import { fetchBooks } from '@/api/bookApi'
-import { saveBooks } from '@/utils/bookStorage'
+import { createBook, deleteBook, fetchBooks } from '@/api/bookApi'
 
 /** 本の一覧と、それを操作する関数をまとめた composable */
 export function useBooks() {
@@ -10,6 +9,14 @@ export function useBooks() {
   const errorMessage = ref<string | null>(null)
   /** 一覧を取得している間だけ true（画面で「読み込み中」の表示やフォームの無効化に使う） */
   const isLoading = ref(false)
+  /** 本を追加している間だけ true（追加ボタンの二度押しで同じ本が 2 冊登録されるのを防ぐ） */
+  const isSaving = ref(false)
+
+  /** 失敗したことをコンソールと画面（errorMessage）に知らせる */
+  function reportError(message: string, error: unknown): void {
+    console.error(message, error)
+    errorMessage.value = message
+  }
 
   /**
    * 本の一覧をバックエンドから取得して books に入れる。
@@ -21,8 +28,7 @@ export function useBooks() {
       books.value = await fetchBooks()
       errorMessage.value = null
     } catch (error) {
-      console.error('本の一覧の取得に失敗しました', error)
-      errorMessage.value = '本の一覧の取得に失敗しました'
+      reportError('本の一覧の取得に失敗しました', error)
     } finally {
       // 成功・失敗のどちらでも、読み込み中の状態は終わらせる
       isLoading.value = false
@@ -30,39 +36,41 @@ export function useBooks() {
   }
 
   /**
-   * 新しい一覧を保存し、成功したときだけ画面に反映する。
+   * 本をバックエンドに登録し、成功したら登録された本を一覧の末尾に足す。
+   * ID はバックエンドが採番するので、ここでは作らない。
    * 失敗したときは books を変えずに errorMessage を設定する。
-   * @returns 保存に成功したかどうか
+   * @returns 登録に成功したかどうか（失敗時にフォームの入力を残すために使う）
    */
-  function commit(nextBooks: Book[], failureMessage: string): boolean {
+  async function addBook(input: BookInput): Promise<boolean> {
+    isSaving.value = true
     try {
-      saveBooks(nextBooks)
-      books.value = nextBooks
+      const createdBook = await createBook(input)
+      // await の間に一覧が変わっている可能性があるので、待ったあとの books.value に足す
+      books.value = [...books.value, createdBook]
       errorMessage.value = null
       return true
     } catch (error) {
-      console.error(failureMessage, error)
-      errorMessage.value = failureMessage
+      reportError('本の追加に失敗しました', error)
       return false
+    } finally {
+      isSaving.value = false
     }
   }
 
   /**
-   * 本を追加する
-   * @returns 保存に成功したかどうか（失敗時にフォームの入力を残すために使う）
+   * 本をバックエンドから削除し、成功したら一覧からも取り除く。
+   * 失敗したときは books を変えずに errorMessage を設定する。
    */
-  function addBook(input: BookInput): boolean {
-    const newBook: Book = { ...input, id: crypto.randomUUID() }
-    return commit([...books.value, newBook], '本の追加に失敗しました')
+  async function removeBook(id: string): Promise<void> {
+    try {
+      await deleteBook(id)
+      // addBook と同じく、待ったあとの books.value から取り除く
+      books.value = books.value.filter((book) => book.id !== id)
+      errorMessage.value = null
+    } catch (error) {
+      reportError('本の削除に失敗しました', error)
+    }
   }
 
-  /** 本を削除する */
-  function removeBook(id: string): void {
-    commit(
-      books.value.filter((book) => book.id !== id),
-      '本の削除に失敗しました',
-    )
-  }
-
-  return { books, addBook, removeBook, errorMessage, isLoading, loadBookList }
+  return { books, addBook, removeBook, errorMessage, isLoading, isSaving, loadBookList }
 }
