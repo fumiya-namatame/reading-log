@@ -1,15 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import type { Book, BookInput } from '@/types/book'
-import { fetchBooks } from '@/api/bookApi'
-import { saveBooks } from '@/utils/bookStorage'
+import { createBook, deleteBook, fetchBooks } from '@/api/bookApi'
 import { useBooks } from '../useBooks'
 
-// API 通信と localStorage への保存はモックに差し替え、useBooks のロジックだけを検証する
+// API 通信はモックに差し替え、useBooks のロジックだけを検証する
 vi.mock('@/api/bookApi', () => ({
   fetchBooks: vi.fn(),
-}))
-vi.mock('@/utils/bookStorage', () => ({
-  saveBooks: vi.fn(),
+  createBook: vi.fn(),
+  deleteBook: vi.fn(),
 }))
 
 const input: BookInput = {
@@ -18,6 +16,9 @@ const input: BookInput = {
   finishedDate: '2026-10-01',
   review: '面白かった',
 }
+
+/** createBook が返す「登録された本」（バックエンドが採番した ID 付き） */
+const createdBook: Book = { ...input, id: 'created-id' }
 
 const existingBooks: Book[] = [
   { id: 'a', title: '羅生門', author: '芥川龍之介', finishedDate: '2026-09-01', review: '' },
@@ -32,10 +33,24 @@ async function useBooksWithExistingBooks(): Promise<ReturnType<typeof useBooks>>
   return result
 }
 
+/**
+ * resolve を呼ぶまで終わらない Promise を作る。
+ * 「通信の途中」の状態を確認するために使う。
+ */
+function createDeferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
+  let resolve: (value: T) => void = () => {}
+  const promise = new Promise<T>((r) => {
+    resolve = r
+  })
+  return { promise, resolve }
+}
+
 describe('useBooks', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.mocked(fetchBooks).mockResolvedValue([])
+    vi.mocked(createBook).mockResolvedValue(structuredClone(createdBook))
+    vi.mocked(deleteBook).mockResolvedValue()
     // console.error の出力でテストログが汚れないように抑止する
     vi.spyOn(console, 'error').mockImplementation(() => {})
   })
@@ -44,11 +59,12 @@ describe('useBooks', () => {
     vi.restoreAllMocks()
   })
 
-  it('初期状態では books は空で、読み込み中でもない', () => {
-    const { books, isLoading } = useBooks()
+  it('初期状態では books は空で、読み込み中でも保存中でもない', () => {
+    const { books, isLoading, isSaving } = useBooks()
 
     expect(books.value).toEqual([])
     expect(isLoading.value).toBe(false)
+    expect(isSaving.value).toBe(false)
     // loadBookList を呼ぶまでは通信しない
     expect(fetchBooks).not.toHaveBeenCalled()
   })
@@ -64,19 +80,14 @@ describe('useBooks', () => {
     })
 
     it('取得している間だけ isLoading が true になる', async () => {
-      // resolve を呼ぶまで終わらない Promise を返し、取得中の状態を確認できるようにする
-      let resolveFetch: (books: Book[]) => void = () => {}
-      vi.mocked(fetchBooks).mockReturnValue(
-        new Promise<Book[]>((resolve) => {
-          resolveFetch = resolve
-        }),
-      )
+      const deferred = createDeferred<Book[]>()
+      vi.mocked(fetchBooks).mockReturnValue(deferred.promise)
       const { isLoading, loadBookList } = useBooks()
 
       const loading = loadBookList()
       expect(isLoading.value).toBe(true)
 
-      resolveFetch(structuredClone(existingBooks))
+      deferred.resolve(structuredClone(existingBooks))
       await loading
       expect(isLoading.value).toBe(false)
     })
@@ -104,114 +115,144 @@ describe('useBooks', () => {
   })
 
   describe('addBook', () => {
-    it('本を追加すると books の件数が1増える', () => {
-      const { books, addBook } = useBooks()
-
-      addBook(input)
-
-      expect(books.value).toHaveLength(1)
-      expect(books.value[0]).toMatchObject(input)
-    })
-
-    it('追加した本に ID が採番される', () => {
-      const { books, addBook } = useBooks()
-
-      addBook(input)
-      addBook(input)
-
-      const [first, second] = books.value
-      expect(first?.id).toEqual(expect.any(String))
-      expect(first?.id).not.toBe('')
-      expect(first?.id).not.toBe(second?.id)
-    })
-
-    it('保存に成功すると true を返す', () => {
+    it('入力値を渡して createBook を呼ぶ', async () => {
       const { addBook } = useBooks()
 
-      expect(addBook(input)).toBe(true)
+      await addBook(input)
+
+      expect(createBook).toHaveBeenCalledTimes(1)
+      expect(createBook).toHaveBeenCalledWith(input)
     })
 
-    it('追加後に saveBooks が呼ばれる', () => {
-      const { books, addBook } = useBooks()
+    it('登録に成功すると、createBook が返した本（バックエンドの ID 付き）が一覧の末尾に入る', async () => {
+      const { books, addBook } = await useBooksWithExistingBooks()
 
-      addBook(input)
+      await addBook(input)
 
-      expect(saveBooks).toHaveBeenCalledTimes(1)
-      expect(saveBooks).toHaveBeenCalledWith(books.value)
+      expect(books.value).toEqual([...existingBooks, createdBook])
+    })
+
+    it('登録に成功すると true を返す', async () => {
+      const { addBook } = useBooks()
+
+      await expect(addBook(input)).resolves.toBe(true)
+    })
+
+    it('登録している間だけ isSaving が true になる', async () => {
+      const deferred = createDeferred<Book>()
+      vi.mocked(createBook).mockReturnValue(deferred.promise)
+      const { isSaving, addBook } = useBooks()
+
+      const adding = addBook(input)
+      expect(isSaving.value).toBe(true)
+
+      deferred.resolve(structuredClone(createdBook))
+      await adding
+      expect(isSaving.value).toBe(false)
+    })
+
+    it('登録を待っている間に一覧の取得が終わっても、取得結果に登録した本が足される', async () => {
+      // addBook が「呼び出した時点の books」ではなく「待ったあとの books」に足していることの確認
+      const deferred = createDeferred<Book>()
+      vi.mocked(createBook).mockReturnValue(deferred.promise)
+      vi.mocked(fetchBooks).mockResolvedValue(structuredClone(existingBooks))
+      const { books, addBook, loadBookList } = useBooks()
+
+      const adding = addBook(input)
+      await loadBookList()
+      deferred.resolve(structuredClone(createdBook))
+      await adding
+
+      expect(books.value).toEqual([...existingBooks, createdBook])
     })
   })
 
   describe('removeBook', () => {
-    it('指定した ID の本だけが削除される', async () => {
+    it('ID を渡して deleteBook を呼ぶ', async () => {
+      const { removeBook } = await useBooksWithExistingBooks()
+
+      await removeBook('a')
+
+      expect(deleteBook).toHaveBeenCalledTimes(1)
+      expect(deleteBook).toHaveBeenCalledWith('a')
+    })
+
+    it('削除に成功すると、指定した ID の本だけが一覧から消える', async () => {
       const { books, removeBook } = await useBooksWithExistingBooks()
 
-      removeBook('a')
+      await removeBook('a')
 
       expect(books.value).toEqual([existingBooks[1]])
     })
 
-    it('存在しない ID を指定しても books は変わらない', async () => {
+    it('一覧にない ID を指定しても、books は変わらない', async () => {
       const { books, removeBook } = await useBooksWithExistingBooks()
 
-      removeBook('not-exist')
+      await removeBook('not-exist')
 
       expect(books.value).toEqual(existingBooks)
     })
 
-    it('削除後に saveBooks が呼ばれる', async () => {
-      const { books, removeBook } = await useBooksWithExistingBooks()
+    it('削除では isSaving を使わない（二度押ししても害がないため）', async () => {
+      const deferred = createDeferred<void>()
+      vi.mocked(deleteBook).mockReturnValue(deferred.promise)
+      const { isSaving, removeBook } = await useBooksWithExistingBooks()
 
-      removeBook('a')
+      const removing = removeBook('a')
+      expect(isSaving.value).toBe(false)
 
-      expect(saveBooks).toHaveBeenCalledTimes(1)
-      expect(saveBooks).toHaveBeenCalledWith(books.value)
-    })
-
-    it('存在しない ID を指定したときは、変更のない一覧がそのまま保存される', async () => {
-      const { removeBook } = await useBooksWithExistingBooks()
-
-      removeBook('not-exist')
-
-      expect(saveBooks).toHaveBeenCalledTimes(1)
-      expect(saveBooks).toHaveBeenCalledWith(existingBooks)
+      deferred.resolve()
+      await removing
     })
   })
 
-  describe('保存に失敗したとき', () => {
-    /** 次の saveBooks 呼び出しだけ、localStorage の容量不足を模した例外を投げる */
-    function failNextSave(): void {
-      vi.mocked(saveBooks).mockImplementationOnce(() => {
-        throw new DOMException('quota exceeded', 'QuotaExceededError')
-      })
-    }
-
-    it('addBook が失敗すると books は変わらず、エラーメッセージが入る', async () => {
+  describe('通信に失敗したとき', () => {
+    it('addBook が失敗すると books は変わらず、エラーメッセージが入り、false を返す', async () => {
       const { books, addBook, errorMessage } = await useBooksWithExistingBooks()
-      failNextSave()
+      vi.mocked(createBook).mockRejectedValueOnce(new Error('network error'))
 
-      const result = addBook(input)
+      const result = await addBook(input)
 
       expect(result).toBe(false)
       expect(books.value).toEqual(existingBooks)
       expect(errorMessage.value).toBe('本の追加に失敗しました')
     })
 
+    it('addBook が失敗しても、保存中の状態は終わる', async () => {
+      const { isSaving, addBook } = useBooks()
+      vi.mocked(createBook).mockRejectedValueOnce(new Error('network error'))
+
+      await addBook(input)
+
+      expect(isSaving.value).toBe(false)
+    })
+
     it('removeBook が失敗すると books は変わらず、エラーメッセージが入る', async () => {
       const { books, removeBook, errorMessage } = await useBooksWithExistingBooks()
-      failNextSave()
+      vi.mocked(deleteBook).mockRejectedValueOnce(new Error('network error'))
 
-      removeBook('a')
+      await removeBook('a')
 
       expect(books.value).toEqual(existingBooks)
       expect(errorMessage.value).toBe('本の削除に失敗しました')
     })
 
-    it('失敗後に保存が成功すると、エラーメッセージが消える', () => {
+    it('失敗後に追加が成功すると、エラーメッセージが消える', async () => {
       const { addBook, errorMessage } = useBooks()
-      failNextSave()
-      addBook(input)
+      vi.mocked(createBook).mockRejectedValueOnce(new Error('network error'))
+      await addBook(input)
 
-      addBook(input)
+      await addBook(input)
+
+      expect(errorMessage.value).toBeNull()
+    })
+
+    it('失敗後に削除が成功すると、エラーメッセージが消える', async () => {
+      const { removeBook, errorMessage } = await useBooksWithExistingBooks()
+      vi.mocked(deleteBook).mockRejectedValueOnce(new Error('network error'))
+      await removeBook('a')
+
+      await removeBook('a')
 
       expect(errorMessage.value).toBeNull()
     })
