@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { onMounted, ref, useTemplateRef, watch } from 'vue'
+import { computed, onMounted, ref, useTemplateRef } from 'vue'
 import BookForm from './components/BookForm.vue'
 import BookList from './components/BookList.vue'
+import BookSearch from './components/BookSearch.vue'
 import { useBooks } from './composables/useBooks'
 import type { Book, BookInput } from './types/book'
 
@@ -12,19 +13,24 @@ const bookForm = useTemplateRef('bookForm')
 /** 編集中の本（null なら、フォームは追加用） */
 const editingBook = ref<Book | null>(null)
 
+/** 今の検索語（空なら全件表示） */
+const searchKeyword = ref('')
+
+/** 一覧が 0 件のときの文言。検索中は「登録されていない」のではなく「見つからない」 */
+const emptyMessage = computed(() =>
+  searchKeyword.value === '' ? 'まだ本が登録されていません' : '条件に合う本が見つかりませんでした',
+)
+
 // 画面を表示したら、本の一覧をバックエンドから取得する
 onMounted(() => {
   loadBookList()
 })
 
-// 編集中の本が一覧からなくなったら（削除されたら）、編集をやめる。
-// そのままだと、もう存在しない本を更新しようとして 404 になってしまう
-watch(books, (currentBooks) => {
-  const editing = editingBook.value
-  if (editing && !currentBooks.some((book) => book.id === editing.id)) {
-    editingBook.value = null
-  }
-})
+/** 検索語が変わったら、その条件で一覧を取り直す（BookSearch 側で、入力が止まるまで待ってから呼ばれる） */
+function handleSearch(keyword: string): void {
+  searchKeyword.value = keyword
+  loadBookList(keyword)
+}
 
 /** 一覧の「編集」が押されたら、その本をフォームで編集できるようにする */
 function startEditing(book: Book): void {
@@ -34,6 +40,22 @@ function startEditing(book: Book): void {
 /** 編集をやめる（フォームは BookForm 側で空に戻る） */
 function stopEditing(): void {
   editingBook.value = null
+}
+
+/**
+ * 本を削除する。編集中の本の削除に成功したら、編集もやめる
+ * （そのままだと、もう存在しない本を更新しようとして 404 になってしまう）。
+ *
+ * 「一覧から消えたら編集をやめる」にすると、検索で一覧から外れただけでも編集が止まって
+ * 入力が消えてしまうので、削除したときだけ判定する。
+ */
+async function handleDelete(id: string): Promise<void> {
+  await removeBook(id)
+  // removeBook は失敗しても例外を投げないので、一覧から消えたかどうかで成功を判定する
+  const deleted = !books.value.some((book) => book.id === id)
+  if (deleted && editingBook.value?.id === id) {
+    stopEditing()
+  }
 }
 
 /**
@@ -76,9 +98,17 @@ async function handleSubmit(input: BookInput): Promise<void> {
       @submit="handleSubmit"
       @cancel="stopEditing"
     />
+    <!-- 検索欄は読み込み中も出したままにする（消すと入力中の文字が失われるため） -->
+    <BookSearch @search="handleSearch" />
     <!-- 取得中に BookList を出すと「まだ本が登録されていません」と表示されてしまうので、代わりに読み込み中を出す -->
     <p v-if="isLoading" class="loading" role="status">読み込み中…</p>
-    <BookList v-else :books="books" @edit="startEditing" @delete="removeBook" />
+    <BookList
+      v-else
+      :books="books"
+      :empty-message="emptyMessage"
+      @edit="startEditing"
+      @delete="handleDelete"
+    />
   </main>
 </template>
 
