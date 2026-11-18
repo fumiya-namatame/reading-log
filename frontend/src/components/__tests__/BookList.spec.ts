@@ -27,8 +27,16 @@ describe('BookList', () => {
   it('子の delete イベントを親へ伝える', async () => {
     const wrapper = mount(BookList, { props: { books } })
 
-    await wrapper.findAllComponents(BookListItem)[1]!.find('button').trigger('click')
+    await wrapper.findAllComponents(BookListItem)[1]!.find('.book-item__delete').trigger('click')
 
     expect(wrapper.emitted('delete')).toEqual([['b']])
+  })
+
+  it('子の edit イベントを、押された本と一緒に親へ伝える', async () => {
+    const wrapper = mount(BookList, { props: { books } })
+
+    await wrapper.findAllComponents(BookListItem)[1]!.find('.book-item__edit').trigger('click')
+
+    expect(wrapper.emitted('edit')).toEqual([[books[1]]])
   })
 })

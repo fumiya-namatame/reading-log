@@ -7,6 +7,7 @@ defineProps<{
 }>()
 
 const emit = defineEmits<{
+  edit: [book: Book]
   delete: [id: string]
 }>()
 </script>
@@ -20,6 +21,7 @@ const emit = defineEmits<{
         v-for="book in books"
         :key="book.id"
         :book="book"
+        @edit="(book) => emit('edit', book)"
         @delete="(id) => emit('delete', id)"
       />
     </ul>

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import type { Book } from '@/types/book'
-import { createBook, deleteBook, fetchBooks } from '@/api/bookApi'
+import { createBook, deleteBook, fetchBooks, updateBook } from '@/api/bookApi'
 import App from '../App.vue'
 
 // API 通信はモックに差し替え、画面の振る舞いだけを検証する
@@ -9,11 +9,20 @@ vi.mock('@/api/bookApi', () => ({
   fetchBooks: vi.fn(),
   createBook: vi.fn(),
   deleteBook: vi.fn(),
+  updateBook: vi.fn(),
 }))
 
 const existingBooks: Book[] = [
   { id: 'a', title: '羅生門', author: '芥川龍之介', finishedDate: '2026-09-01', review: '' },
 ]
+
+/** updateBook が返す「更新された本」（既存の本 a を書き換えたもの） */
+const updatedBook: Book = { ...existingBooks[0]!, title: '羅生門（改版）' }
+
+/** 入力欄 title の今の値 */
+function titleValue(wrapper: ReturnType<typeof mount<typeof App>>): string {
+  return (wrapper.find('input[name="title"]').element as HTMLInputElement).value
+}
 
 /** createBook が返す「登録された本」 */
 const newBook: Book = { id: 'new', title: 'こころ', author: '', finishedDate: '', review: '' }
@@ -24,6 +33,7 @@ describe('App', () => {
     vi.mocked(fetchBooks).mockResolvedValue([])
     vi.mocked(createBook).mockResolvedValue({ ...newBook })
     vi.mocked(deleteBook).mockResolvedValue()
+    vi.mocked(updateBook).mockResolvedValue({ ...updatedBook })
     // console.error の出力でテストログが汚れないように抑止する
     vi.spyOn(console, 'error').mockImplementation(() => {})
   })
@@ -161,6 +171,112 @@ describe('App', () => {
 
       expect(wrapper.find('[role="alert"]').text()).toBe('本の削除に失敗しました')
       expect(wrapper.text()).toContain('羅生門')
+    })
+  })
+
+  describe('本の編集', () => {
+    /** 既存の本を表示した状態で App を作り、本 a の「編集」を押すところまで済ませる */
+    async function mountAndStartEditing(): Promise<ReturnType<typeof mount<typeof App>>> {
+      vi.mocked(fetchBooks).mockResolvedValue(structuredClone(existingBooks))
+      const wrapper = mount(App)
+      await flushPromises()
+      await wrapper.find('.book-item__edit').trigger('click')
+      return wrapper
+    }
+
+    it('「編集」を押すと、その本の内容がフォームに入り、更新用の表示になる', async () => {
+      const wrapper = await mountAndStartEditing()
+
+      expect(titleValue(wrapper)).toBe('羅生門')
+      expect(wrapper.find('button[type="submit"]').text()).toBe('更新')
+    })
+
+    it('更新に成功すると、一覧の本が書き換わり、フォームは空の追加用に戻る', async () => {
+      const wrapper = await mountAndStartEditing()
+
+      await wrapper.find('input[name="title"]').setValue('羅生門（改版）')
+      await wrapper.find('form').trigger('submit')
+      await flushPromises()
+
+      expect(updateBook).toHaveBeenCalledWith('a', {
+        title: '羅生門（改版）',
+        author: '芥川龍之介',
+        finishedDate: '2026-09-01',
+        review: '',
+      })
+      // 追加ではなく更新として扱う
+      expect(createBook).not.toHaveBeenCalled()
+      expect(wrapper.find('.book-list').text()).toContain('羅生門（改版）')
+      expect(titleValue(wrapper)).toBe('')
+      expect(wrapper.find('button[type="submit"]').text()).toBe('追加')
+      expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+    })
+
+    it('更新に失敗するとエラーを表示し、編集中の入力を残す', async () => {
+      vi.mocked(updateBook).mockRejectedValueOnce(new Error('network error'))
+      const wrapper = await mountAndStartEditing()
+
+      await wrapper.find('input[name="title"]').setValue('羅生門（改版）')
+      await wrapper.find('form').trigger('submit')
+      await flushPromises()
+
+      expect(wrapper.find('[role="alert"]').text()).toBe('本の更新に失敗しました')
+      expect(titleValue(wrapper)).toBe('羅生門（改版）')
+      expect(wrapper.find('button[type="submit"]').text()).toBe('更新')
+      // 一覧は元のまま
+      expect(wrapper.find('.book-item__title').text()).toBe('羅生門')
+    })
+
+    it('更新を待っている間は、更新ボタンもキャンセルボタンも無効になる', async () => {
+      // resolve を呼ぶまで終わらない Promise を返し、更新の途中の画面を確認できるようにする
+      let resolveUpdate: (book: Book) => void = () => {}
+      vi.mocked(updateBook).mockReturnValue(
+        new Promise<Book>((resolve) => {
+          resolveUpdate = resolve
+        }),
+      )
+      const wrapper = await mountAndStartEditing()
+
+      await wrapper.find('form').trigger('submit')
+      await wrapper.find('form').trigger('submit')
+
+      expect(wrapper.find('button[type="submit"]').attributes('disabled')).toBeDefined()
+      expect(wrapper.find('.book-form__cancel').attributes('disabled')).toBeDefined()
+      expect(updateBook).toHaveBeenCalledTimes(1)
+
+      resolveUpdate({ ...updatedBook })
+      await flushPromises()
+    })
+
+    it('キャンセルを押すと、更新せずにフォームが空の追加用に戻る', async () => {
+      const wrapper = await mountAndStartEditing()
+
+      await wrapper.find('.book-form__cancel').trigger('click')
+
+      expect(updateBook).not.toHaveBeenCalled()
+      expect(titleValue(wrapper)).toBe('')
+      expect(wrapper.find('button[type="submit"]').text()).toBe('追加')
+    })
+
+    it('編集中の本を削除すると、編集をやめてフォームが空の追加用に戻る', async () => {
+      const wrapper = await mountAndStartEditing()
+
+      await wrapper.find('.book-item__delete').trigger('click')
+      await flushPromises()
+
+      expect(titleValue(wrapper)).toBe('')
+      expect(wrapper.find('button[type="submit"]').text()).toBe('追加')
+    })
+
+    it('編集中の本の削除に失敗したときは、編集を続ける', async () => {
+      vi.mocked(deleteBook).mockRejectedValueOnce(new Error('network error'))
+      const wrapper = await mountAndStartEditing()
+
+      await wrapper.find('.book-item__delete').trigger('click')
+      await flushPromises()
+
+      expect(titleValue(wrapper)).toBe('羅生門')
+      expect(wrapper.find('button[type="submit"]').text()).toBe('更新')
     })
   })
 })

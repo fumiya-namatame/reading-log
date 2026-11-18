@@ -83,3 +83,25 @@ export async function deleteBook(id: string): Promise<void> {
   }
   // 本文がないので response.json() は呼ばない（呼ぶと JSON の解析に失敗して例外になる）
 }
+
+/**
+ * 指定した ID の本の内容をバックエンドで更新し、更新された本を返す。
+ * 存在しない ID のときはバックエンドが 404 を返すので、例外を投げる（削除と違い、成功扱いにはならない）。
+ * サーバーがエラーを返したとき（入力エラーの 400 など）や、通信に失敗したときも例外を投げる。
+ */
+export async function updateBook(id: string, input: BookInput): Promise<Book> {
+  // deleteBook と同じく、URL に埋め込む ID はエスケープする
+  const response = await fetch(`/api/books/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    // createBook と同じく、JSON を送ることを伝える
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(toRequest(input)),
+  })
+
+  if (!response.ok) {
+    throw new Error(`本の更新に失敗しました（status: ${response.status}）`)
+  }
+
+  const body: BookResponse = await response.json()
+  return toBook(body)
+}

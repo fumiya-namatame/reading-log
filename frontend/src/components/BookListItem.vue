@@ -6,6 +6,8 @@ defineProps<{
 }>()
 
 const emit = defineEmits<{
+  // 編集フォームに今の内容を入れるので、ID だけでなく本全体を渡す
+  edit: [book: Book]
   delete: [id: string]
 }>()
 </script>
@@ -14,7 +16,12 @@ const emit = defineEmits<{
   <li class="book-item">
     <div class="book-item__header">
       <h3 class="book-item__title">{{ book.title }}</h3>
-      <button type="button" class="book-item__delete" @click="emit('delete', book.id)">削除</button>
+      <div class="book-item__actions">
+        <button type="button" class="book-item__edit" @click="emit('edit', book)">編集</button>
+        <button type="button" class="book-item__delete" @click="emit('delete', book.id)">
+          削除
+        </button>
+      </div>
     </div>
     <p class="book-item__meta">
       <span class="book-item__author">{{ book.author }}</span>
@@ -37,6 +44,13 @@ const emit = defineEmits<{
   justify-content: space-between;
   align-items: center;
   gap: 1rem;
+}
+
+.book-item__actions {
+  display: flex;
+  gap: 0.5rem;
+  /* タイトルが長くてもボタンが縮んだり折り返したりしないようにする */
+  flex-shrink: 0;
 }
 
 .book-item__title {

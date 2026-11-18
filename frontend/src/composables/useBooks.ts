@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import type { Book, BookInput } from '@/types/book'
-import { createBook, deleteBook, fetchBooks } from '@/api/bookApi'
+import { createBook, deleteBook, fetchBooks, updateBook } from '@/api/bookApi'
 
 /** 本の一覧と、それを操作する関数をまとめた composable */
 export function useBooks() {
@@ -9,7 +9,7 @@ export function useBooks() {
   const errorMessage = ref<string | null>(null)
   /** 一覧を取得している間だけ true（画面で「読み込み中」の表示やフォームの無効化に使う） */
   const isLoading = ref(false)
-  /** 本を追加している間だけ true（追加ボタンの二度押しで同じ本が 2 冊登録されるのを防ぐ） */
+  /** 本を追加・更新している間だけ true（ボタンの二度押しで同じ本が 2 冊登録されるのなどを防ぐ） */
   const isSaving = ref(false)
 
   /** 失敗したことをコンソールと画面（errorMessage）に知らせる */
@@ -58,6 +58,27 @@ export function useBooks() {
   }
 
   /**
+   * 指定した ID の本をバックエンドで更新し、成功したら一覧の同じ位置の本を置き換える。
+   * 失敗したときは books を変えずに errorMessage を設定する。
+   * @returns 更新に成功したかどうか（失敗時に編集中の入力を残すために使う）
+   */
+  async function editBook(id: string, input: BookInput): Promise<boolean> {
+    isSaving.value = true
+    try {
+      const updatedBook = await updateBook(id, input)
+      // addBook と同じく、待ったあとの books.value で置き換える（並び順は変えない）
+      books.value = books.value.map((book) => (book.id === id ? updatedBook : book))
+      errorMessage.value = null
+      return true
+    } catch (error) {
+      reportError('本の更新に失敗しました', error)
+      return false
+    } finally {
+      isSaving.value = false
+    }
+  }
+
+  /**
    * 本をバックエンドから削除し、成功したら一覧からも取り除く。
    * 失敗したときは books を変えずに errorMessage を設定する。
    */
@@ -72,5 +93,5 @@ export function useBooks() {
     }
   }
 
-  return { books, addBook, removeBook, errorMessage, isLoading, isSaving, loadBookList }
+  return { books, addBook, editBook, removeBook, errorMessage, isLoading, isSaving, loadBookList }
 }

@@ -24,8 +24,18 @@ describe('BookListItem', () => {
   it('削除ボタンを押すと本の ID で delete を emit する', async () => {
     const wrapper = mount(BookListItem, { props: { book } })
 
-    await wrapper.find('button').trigger('click')
+    await wrapper.find('.book-item__delete').trigger('click')
 
     expect(wrapper.emitted('delete')).toEqual([['book-1']])
+    expect(wrapper.emitted('edit')).toBeUndefined()
+  })
+
+  it('編集ボタンを押すと本全体で edit を emit する', async () => {
+    const wrapper = mount(BookListItem, { props: { book } })
+
+    await wrapper.find('.book-item__edit').trigger('click')
+
+    expect(wrapper.emitted('edit')).toEqual([[book]])
+    expect(wrapper.emitted('delete')).toBeUndefined()
   })
 })
