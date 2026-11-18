@@ -90,6 +90,92 @@ describe('fetchBooks', () => {
 
     await expect(fetchBooks()).rejects.toThrow()
   })
+
+  describe('keyword を指定したとき', () => {
+    /** fetch に渡された URL を取り出し、パスと keyword に分ける */
+    function calledUrl(fetchMock: ReturnType<typeof mockFetch>): {
+      pathname: string
+      keyword: string | null
+    } {
+      // 相対 URL なので、解析用に仮のオリジンを付ける
+      const url = new URL(String(fetchMock.mock.calls[0]?.[0]), 'http://localhost')
+      return { pathname: url.pathname, keyword: url.searchParams.get('keyword') }
+    }
+
+    it('GET /api/books に keyword を付けて呼ぶ', async () => {
+      const fetchMock = mockFetch(200, [])
+
+      await fetchBooks('漱石')
+
+      expect(calledUrl(fetchMock)).toEqual({ pathname: '/api/books', keyword: '漱石' })
+    })
+
+    it('前後の空白は取り除いて送る', async () => {
+      const fetchMock = mockFetch(200, [])
+
+      await fetchBooks('  漱石　')
+
+      expect(calledUrl(fetchMock).keyword).toBe('漱石')
+    })
+
+    it('途中の空白は残して送る', async () => {
+      const fetchMock = mockFetch(200, [])
+
+      await fetchBooks('吾輩は 猫')
+
+      expect(calledUrl(fetchMock).keyword).toBe('吾輩は 猫')
+    })
+
+    it('URL で特別な意味を持つ文字が含まれていても、エスケープして送る', async () => {
+      const fetchMock = mockFetch(200, [])
+
+      await fetchBooks('a&b=c#d?e')
+
+      expect(calledUrl(fetchMock).keyword).toBe('a&b=c#d?e')
+    })
+
+    it.each(['', '   ', '　'])(
+      'keyword が「%s」（空・空白だけ）のときは keyword を付けない',
+      async (keyword) => {
+        const fetchMock = mockFetch(200, [])
+
+        await fetchBooks(keyword)
+
+        expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/books')
+      },
+    )
+
+    it('返ってきた本を Book に変換して返す', async () => {
+      const responseBody: BookResponse[] = [
+        {
+          id: '44444444-4444-4444-4444-444444444444',
+          title: 'こころ',
+          author: '夏目漱石',
+          finishedDate: null,
+          review: null,
+        },
+      ]
+      mockFetch(200, responseBody)
+
+      const books = await fetchBooks('漱石')
+
+      expect(books).toEqual([
+        {
+          id: '44444444-4444-4444-4444-444444444444',
+          title: 'こころ',
+          author: '夏目漱石',
+          finishedDate: '',
+          review: '',
+        },
+      ])
+    })
+
+    it('サーバーがエラー（500）を返したときは例外を投げる', async () => {
+      mockFetch(500, { error: 'Internal Server Error' })
+
+      await expect(fetchBooks('漱石')).rejects.toThrow()
+    })
+  })
 })
 
 describe('createBook', () => {

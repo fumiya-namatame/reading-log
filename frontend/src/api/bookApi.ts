@@ -32,10 +32,17 @@ function toRequest(input: BookInput): BookRequest {
 
 /**
  * 本の一覧をバックエンドから取得する。
+ * keyword を指定すると、タイトルか著者にその文字列を含む本だけを取得する。
+ * keyword が未指定・空・空白だけのときは全件を取得する。
  * サーバーがエラーを返したときや、通信に失敗したときは例外を投げる。
  */
-export async function fetchBooks(): Promise<Book[]> {
-  const response = await fetch('/api/books')
+export async function fetchBooks(keyword?: string): Promise<Book[]> {
+  // 前後の空白はバックエンドでも取り除かれるが、空白だけのときに ?keyword= を付けないようにここでも取り除く
+  const trimmed = keyword?.trim() ?? ''
+  // URLSearchParams を使うと、& や # など URL で特別な意味を持つ文字もエスケープされる
+  const url =
+    trimmed === '' ? '/api/books' : `/api/books?${new URLSearchParams({ keyword: trimmed })}`
+  const response = await fetch(url)
 
   // fetch は 4xx / 5xx でも例外にならないので、自分でチェックする
   if (!response.ok) {

@@ -3,6 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import type { Book } from '@/types/book'
 import { createBook, deleteBook, fetchBooks, updateBook } from '@/api/bookApi'
 import App from '../App.vue'
+import BookSearch from '@/components/BookSearch.vue'
 
 // API 通信はモックに差し替え、画面の振る舞いだけを検証する
 vi.mock('@/api/bookApi', () => ({
@@ -276,6 +277,90 @@ describe('App', () => {
       await flushPromises()
 
       expect(titleValue(wrapper)).toBe('羅生門')
+      expect(wrapper.find('button[type="submit"]').text()).toBe('更新')
+    })
+  })
+
+  describe('検索', () => {
+    const bookByKawabata: Book = {
+      id: 'b',
+      title: '雪国',
+      author: '川端康成',
+      finishedDate: '',
+      review: '',
+    }
+
+    /** 2 冊表示した状態で App を作る */
+    async function mountWithTwoBooks(): Promise<ReturnType<typeof mount<typeof App>>> {
+      vi.mocked(fetchBooks).mockResolvedValue(structuredClone([...existingBooks, bookByKawabata]))
+      const wrapper = mount(App)
+      await flushPromises()
+      return wrapper
+    }
+
+    /**
+     * 検索欄から search が emit されたことにする。
+     * 入力が止まるまで待つ仕組み（デバウンス）は BookSearch のテストで確認済みなので、ここでは省く
+     */
+    async function search(
+      wrapper: ReturnType<typeof mount<typeof App>>,
+      keyword: string,
+    ): Promise<void> {
+      wrapper.findComponent(BookSearch).vm.$emit('search', keyword)
+      await flushPromises()
+    }
+
+    it('検索すると、検索語で一覧を取り直し、結果だけを表示する', async () => {
+      const wrapper = await mountWithTwoBooks()
+      vi.mocked(fetchBooks).mockResolvedValue([structuredClone(bookByKawabata)])
+
+      await search(wrapper, '川端')
+
+      expect(fetchBooks).toHaveBeenLastCalledWith('川端')
+      expect(wrapper.find('.book-list').text()).toContain('雪国')
+      expect(wrapper.find('.book-list').text()).not.toContain('羅生門')
+    })
+
+    it('検索して 0 件のときは「見つかりませんでした」を表示する', async () => {
+      const wrapper = await mountWithTwoBooks()
+      vi.mocked(fetchBooks).mockResolvedValue([])
+
+      await search(wrapper, '存在しない')
+
+      expect(wrapper.find('.book-list__empty').text()).toBe('条件に合う本が見つかりませんでした')
+    })
+
+    it('検索語を空に戻すと全件を表示し、0 件の文言も元に戻る', async () => {
+      const wrapper = await mountWithTwoBooks()
+      vi.mocked(fetchBooks).mockResolvedValue([])
+      await search(wrapper, '存在しない')
+
+      vi.mocked(fetchBooks).mockResolvedValue([])
+      await search(wrapper, '')
+
+      expect(fetchBooks).toHaveBeenLastCalledWith('')
+      expect(wrapper.find('.book-list__empty').text()).toBe('まだ本が登録されていません')
+    })
+
+    it('検索に失敗するとエラーを表示する', async () => {
+      const wrapper = await mountWithTwoBooks()
+      vi.mocked(fetchBooks).mockRejectedValue(new Error('network error'))
+
+      await search(wrapper, '川端')
+
+      expect(wrapper.find('[role="alert"]').text()).toBe('本の一覧の取得に失敗しました')
+    })
+
+    it('編集中の本が検索で一覧から外れても、編集は続ける', async () => {
+      const wrapper = await mountWithTwoBooks()
+      // 羅生門（1 冊目）の編集を始めて、入力を書き換える
+      await wrapper.find('.book-item__edit').trigger('click')
+      await wrapper.find('input[name="title"]').setValue('羅生門（編集中）')
+      vi.mocked(fetchBooks).mockResolvedValue([structuredClone(bookByKawabata)])
+
+      await search(wrapper, '川端')
+
+      expect(titleValue(wrapper)).toBe('羅生門（編集中）')
       expect(wrapper.find('button[type="submit"]').text()).toBe('更新')
     })
   })
