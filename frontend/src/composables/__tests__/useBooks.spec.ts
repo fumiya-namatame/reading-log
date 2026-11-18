@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import type { Book, BookInput } from '@/types/book'
-import { createBook, deleteBook, fetchBooks } from '@/api/bookApi'
+import { createBook, deleteBook, fetchBooks, updateBook } from '@/api/bookApi'
 import { useBooks } from '../useBooks'
 
 // API 通信はモックに差し替え、useBooks のロジックだけを検証する
@@ -8,6 +8,7 @@ vi.mock('@/api/bookApi', () => ({
   fetchBooks: vi.fn(),
   createBook: vi.fn(),
   deleteBook: vi.fn(),
+  updateBook: vi.fn(),
 }))
 
 const input: BookInput = {
@@ -19,6 +20,9 @@ const input: BookInput = {
 
 /** createBook が返す「登録された本」（バックエンドが採番した ID 付き） */
 const createdBook: Book = { ...input, id: 'created-id' }
+
+/** updateBook が返す「更新された本」（既存の本 a を書き換えたもの） */
+const updatedBook: Book = { ...input, id: 'a' }
 
 const existingBooks: Book[] = [
   { id: 'a', title: '羅生門', author: '芥川龍之介', finishedDate: '2026-09-01', review: '' },
@@ -51,6 +55,7 @@ describe('useBooks', () => {
     vi.mocked(fetchBooks).mockResolvedValue([])
     vi.mocked(createBook).mockResolvedValue(structuredClone(createdBook))
     vi.mocked(deleteBook).mockResolvedValue()
+    vi.mocked(updateBook).mockResolvedValue(structuredClone(updatedBook))
     // console.error の出力でテストログが汚れないように抑止する
     vi.spyOn(console, 'error').mockImplementation(() => {})
   })
@@ -167,6 +172,60 @@ describe('useBooks', () => {
     })
   })
 
+  describe('editBook', () => {
+    it('ID と入力値を渡して updateBook を呼ぶ', async () => {
+      const { editBook } = await useBooksWithExistingBooks()
+
+      await editBook('a', input)
+
+      expect(updateBook).toHaveBeenCalledTimes(1)
+      expect(updateBook).toHaveBeenCalledWith('a', input)
+    })
+
+    it('更新に成功すると、同じ位置の本が updateBook の結果に置き換わる', async () => {
+      const { books, editBook } = await useBooksWithExistingBooks()
+
+      await editBook('a', input)
+
+      // 並び順は変わらず、a だけが置き換わる
+      expect(books.value).toEqual([updatedBook, existingBooks[1]])
+    })
+
+    it('更新に成功すると true を返す', async () => {
+      const { editBook } = await useBooksWithExistingBooks()
+
+      await expect(editBook('a', input)).resolves.toBe(true)
+    })
+
+    it('更新している間だけ isSaving が true になる', async () => {
+      const deferred = createDeferred<Book>()
+      vi.mocked(updateBook).mockReturnValue(deferred.promise)
+      const { isSaving, editBook } = await useBooksWithExistingBooks()
+
+      const editing = editBook('a', input)
+      expect(isSaving.value).toBe(true)
+
+      deferred.resolve(structuredClone(updatedBook))
+      await editing
+      expect(isSaving.value).toBe(false)
+    })
+
+    it('更新を待っている間に一覧の取得が終わっても、取得結果の中で置き換わる', async () => {
+      // editBook が「呼び出した時点の books」ではなく「待ったあとの books」を使っていることの確認
+      const deferred = createDeferred<Book>()
+      vi.mocked(updateBook).mockReturnValue(deferred.promise)
+      vi.mocked(fetchBooks).mockResolvedValue(structuredClone(existingBooks))
+      const { books, editBook, loadBookList } = useBooks()
+
+      const editing = editBook('a', input)
+      await loadBookList()
+      deferred.resolve(structuredClone(updatedBook))
+      await editing
+
+      expect(books.value).toEqual([updatedBook, existingBooks[1]])
+    })
+  })
+
   describe('removeBook', () => {
     it('ID を渡して deleteBook を呼ぶ', async () => {
       const { removeBook } = await useBooksWithExistingBooks()
@@ -225,6 +284,36 @@ describe('useBooks', () => {
       await addBook(input)
 
       expect(isSaving.value).toBe(false)
+    })
+
+    it('editBook が失敗すると books は変わらず、エラーメッセージが入り、false を返す', async () => {
+      const { books, editBook, errorMessage } = await useBooksWithExistingBooks()
+      vi.mocked(updateBook).mockRejectedValueOnce(new Error('network error'))
+
+      const result = await editBook('a', input)
+
+      expect(result).toBe(false)
+      expect(books.value).toEqual(existingBooks)
+      expect(errorMessage.value).toBe('本の更新に失敗しました')
+    })
+
+    it('editBook が失敗しても、保存中の状態は終わる', async () => {
+      const { isSaving, editBook } = await useBooksWithExistingBooks()
+      vi.mocked(updateBook).mockRejectedValueOnce(new Error('network error'))
+
+      await editBook('a', input)
+
+      expect(isSaving.value).toBe(false)
+    })
+
+    it('失敗後に更新が成功すると、エラーメッセージが消える', async () => {
+      const { editBook, errorMessage } = await useBooksWithExistingBooks()
+      vi.mocked(updateBook).mockRejectedValueOnce(new Error('network error'))
+      await editBook('a', input)
+
+      await editBook('a', input)
+
+      expect(errorMessage.value).toBeNull()
     })
 
     it('removeBook が失敗すると books は変わらず、エラーメッセージが入る', async () => {
