@@ -19,19 +19,34 @@ export function useBooks() {
   }
 
   /**
-   * 本の一覧をバックエンドから取得して books に入れる。
-   * 失敗したときは books を変えずに errorMessage を設定する。
+   * 最後に始めた一覧取得の番号。
+   * 検索を続けて行うと、前の取得の結果があとから届くことがあるので、
+   * 番号が最新のものの結果だけを使うために覚えておく。
    */
-  async function loadBookList(): Promise<void> {
+  let latestLoadId = 0
+
+  /**
+   * 本の一覧をバックエンドから取得して books に入れる。
+   * keyword を指定すると、タイトルか著者にその文字列を含む本だけを取得する（空なら全件）。
+   * 失敗したときは books を変えずに errorMessage を設定する。
+   * 取得中に次の取得が始まったら、古いほうの結果（成功・失敗とも）は捨てる。
+   */
+  async function loadBookList(keyword?: string): Promise<void> {
+    const loadId = ++latestLoadId
     isLoading.value = true
     try {
-      books.value = await fetchBooks()
+      const fetchedBooks = await fetchBooks(keyword)
+      if (loadId !== latestLoadId) return
+      books.value = fetchedBooks
       errorMessage.value = null
     } catch (error) {
+      if (loadId !== latestLoadId) return
       reportError('本の一覧の取得に失敗しました', error)
     } finally {
-      // 成功・失敗のどちらでも、読み込み中の状態は終わらせる
-      isLoading.value = false
+      // 新しい取得がまだ終わっていないときは、読み込み中のままにしておく
+      if (loadId === latestLoadId) {
+        isLoading.value = false
+      }
     }
   }
 

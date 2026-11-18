@@ -117,6 +117,72 @@ describe('useBooks', () => {
 
       expect(errorMessage.value).toBeNull()
     })
+
+    it('keyword を渡すと、そのまま fetchBooks に渡して結果を books に入れる', async () => {
+      const searchedBooks = [structuredClone(existingBooks[1]!)]
+      vi.mocked(fetchBooks).mockResolvedValue(searchedBooks)
+      const { books, loadBookList } = useBooks()
+
+      await loadBookList('漱石')
+
+      expect(fetchBooks).toHaveBeenCalledWith('漱石')
+      expect(books.value).toEqual([existingBooks[1]])
+    })
+
+    describe('取得中に次の取得を始めたとき', () => {
+      it('先の取得があとから届いても、後の取得の結果が残る', async () => {
+        const first = createDeferred<Book[]>()
+        const second = createDeferred<Book[]>()
+        vi.mocked(fetchBooks).mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
+        const { books, loadBookList } = useBooks()
+
+        const firstLoading = loadBookList('夏')
+        const secondLoading = loadBookList('夏目')
+        // 後の取得が先に終わり、そのあと先の取得が終わる
+        second.resolve([structuredClone(existingBooks[1]!)])
+        await secondLoading
+        first.resolve(structuredClone(existingBooks))
+        await firstLoading
+
+        expect(books.value).toEqual([existingBooks[1]])
+      })
+
+      it('先の取得が終わっても、後の取得が終わるまでは読み込み中のまま', async () => {
+        const first = createDeferred<Book[]>()
+        const second = createDeferred<Book[]>()
+        vi.mocked(fetchBooks).mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
+        const { isLoading, loadBookList } = useBooks()
+
+        const firstLoading = loadBookList('夏')
+        const secondLoading = loadBookList('夏目')
+        first.resolve(structuredClone(existingBooks))
+        await firstLoading
+        expect(isLoading.value).toBe(true)
+
+        second.resolve([structuredClone(existingBooks[1]!)])
+        await secondLoading
+        expect(isLoading.value).toBe(false)
+      })
+
+      it('先の取得があとから失敗しても、エラーメッセージは出さない', async () => {
+        let rejectFirst: (error: Error) => void = () => {}
+        const first = new Promise<Book[]>((_, reject) => {
+          rejectFirst = reject
+        })
+        vi.mocked(fetchBooks)
+          .mockReturnValueOnce(first)
+          .mockResolvedValueOnce([structuredClone(existingBooks[1]!)])
+        const { books, errorMessage, loadBookList } = useBooks()
+
+        const firstLoading = loadBookList('夏')
+        await loadBookList('夏目')
+        rejectFirst(new Error('network error'))
+        await firstLoading
+
+        expect(errorMessage.value).toBeNull()
+        expect(books.value).toEqual([existingBooks[1]])
+      })
+    })
   })
 
   describe('addBook', () => {
