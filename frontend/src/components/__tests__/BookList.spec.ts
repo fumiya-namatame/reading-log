@@ -24,6 +24,22 @@ describe('BookList', () => {
     expect(wrapper.findAllComponents(BookListItem)).toHaveLength(0)
   })
 
+  it('emptyMessage を渡すと、本が 0 件のときにその文言を表示する', () => {
+    const wrapper = mount(BookList, {
+      props: { books: [], emptyMessage: '条件に合う本が見つかりませんでした' },
+    })
+
+    expect(wrapper.find('.book-list__empty').text()).toBe('条件に合う本が見つかりませんでした')
+  })
+
+  it('emptyMessage を渡しても、本があるときは表示しない', () => {
+    const wrapper = mount(BookList, {
+      props: { books, emptyMessage: '条件に合う本が見つかりませんでした' },
+    })
+
+    expect(wrapper.find('.book-list__empty').exists()).toBe(false)
+  })
+
   it('子の delete イベントを親へ伝える', async () => {
     const wrapper = mount(BookList, { props: { books } })
 
