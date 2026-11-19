@@ -8,10 +8,11 @@
 
 ## 構成
 
-| ディレクトリ | 内容                      | 詳細ルール           |
-| ------------ | ------------------------- | -------------------- |
-| `frontend/`  | Vue 3 + TypeScript + Vite | `frontend/CLAUDE.md` |
-| `backend/`   | Java 25 + Spring Boot 4   | `backend/CLAUDE.md`  |
+| ディレクトリ  | 内容                                   | 詳細ルール                 |
+| ------------- | -------------------------------------- | -------------------------- |
+| `frontend/`   | Vue 3 + TypeScript + Vite              | `frontend/CLAUDE.md`       |
+| `backend/`    | Java 25 + Spring Boot 4                | `backend/CLAUDE.md`        |
+| `docs/notes/` | 学習メモ（`/note` コマンドで作成する） | `.claude/commands/note.md` |
 
 - 各ディレクトリの技術スタック・コマンド・コーディング規約は、それぞれの CLAUDE.md に書く
 - npm や mvnw などのコマンドは、それぞれのディレクトリで実行する
