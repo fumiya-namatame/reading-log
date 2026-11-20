@@ -1,7 +1,7 @@
 ---
-description: 会話と直近のコミットから学習メモを作り、docs/notes/ に保存する
-argument-hint: '[テーマ（省略すると会話全体）]'
-allowed-tools: Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(date:*), Write, Read, Glob
+description: 会話とブランチのコミットから学習メモを作り、docs/notes/ に保存する
+argument-hint: "[テーマ（省略すると会話全体）]"
+allowed-tools: Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(git status:*), Bash(date:*), Write, Read, Glob
 ---
 
 この会話で学んだことを、学習メモとしてまとめて保存してください。
@@ -16,10 +16,14 @@ allowed-tools: Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(date:*)
 ## 材料
 
 1. この会話でのやり取り（質問、説明、決めたこと、つまずいたこと）
-2. 自分（ユーザー）で書いたコード
-   - `git show HEAD`（直近のコミット）と `git diff`（未コミットの変更）から拾う
-   - 直近のコミットが自分のものか分からないときは、`git log -5 --format='%h %s%n%b'` で本文を確認する
-   - `Co-Authored-By: Claude` が付いたコミットは Claude が書いたものなので、「自分で書いたコード」には入れない
+2. 自分（ユーザー）で書いたコード。ブランチ全体から次の手順で拾う
+   1. `git log main..HEAD --format='%h %s%n%b'` で、このブランチのコミットを一覧にする
+   2. そのうち `Co-Authored-By: Claude` が付いていないもの（自分のコミット）だけを、`git show <ハッシュ>` で 1 つずつ読む
+      - `git diff main...HEAD` でまとめて見ると、Claude が書いた変更と混ざるので使わない
+   3. 未コミットの変更は `git diff` で見る。まだ `git add` していない新しいファイルは `git diff` に出ないので、
+      `git status --short` で `??` のファイルを探して Read で読む（`docs/notes/` のメモは対象外）
+   4. 1 が空のとき（`main` にいるときや、マージした後）は、代わりに `git show HEAD` で直近のコミットを見る。
+      これも `Co-Authored-By: Claude` が付いていれば対象外
    - 会話の中で自分で書いたと分かるコードがあれば、それも含めてよい
 
 ## メモの構成
